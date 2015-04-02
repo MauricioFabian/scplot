@@ -7,12 +7,16 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Map;
 
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
-import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
+
+import com.xeiam.xchart.BitmapEncoder;
+import com.xeiam.xchart.BitmapEncoder.BitmapFormat;
+import com.xeiam.xchart.Chart;
+import com.xeiam.xchart.Series;
+import com.xeiam.xchart.SeriesMarker;
 
 /**
  * Hello world!
@@ -20,14 +24,19 @@ import org.jsoup.select.Elements;
  */
 public class App 
 {
+	
+	private static int startYear=1900;
+	private static int endYear=2015;
     public static void main( String[] args )
     {
     	HashMap<Integer,Double> globalNotes= new HashMap<Integer,Double>();
     	HashMap<Integer,Double> perYearAvis= new HashMap<Integer,Double>();
+    	ArrayList<Notes> notes= new ArrayList<Notes>();
     	Document doc;
 		try {
-			for(int i=1990;i<1992;i++){
+			for(int i=startYear;i<endYear;i++){
 				ArrayList<Double> yearNotes= new ArrayList<Double>();
+				ArrayList<Double> yearAvis= new ArrayList<Double>();
 				for(int j=1;j<4;j++){
 					doc = Jsoup.connect("http://www.senscritique.com/recherche?query="+i+"&filter=movies&page="+j).get();
 					Elements newsHeadlines = doc.select(".erra-ratings a");
@@ -45,10 +54,13 @@ public class App
 							}
 							
 							String nbrAvis= newsHeadlines.get(k).attr("title");
+							String nbrAvis1= nbrAvis.replace("Note globale pondérée sur : ", "");
+							String nbrAvis2= nbrAvis1.replace(" avis", "");
 							if(!text.equals("-") && textYear.equals("("+i+")")){
 								Double noteToAdd = Double.parseDouble(text);
 								yearNotes.add(noteToAdd);
-								System.out.println(i+"-> "+text+"_>_>_>_"+nbrAvis);
+								yearAvis.add(Double.parseDouble(nbrAvis2));
+								System.out.println(i+"-> "+text+">"+nbrAvis2+" avis");
 							}
 						}
 					}
@@ -62,6 +74,22 @@ public class App
 				bd= bd.setScale(2,BigDecimal.ROUND_DOWN);
 				moy = bd.doubleValue();
 				globalNotes.put(i, moy);
+				
+				Notes note= new Notes();
+				note.setYear(i);
+				note.setNote(moy);
+				notes.add(note);
+				
+				sum=0.0;
+				for(Double avis: yearAvis){
+					sum=sum+avis;
+				}
+				moy= sum/yearNotes.size();
+				bd = new BigDecimal(moy);
+				bd= bd.setScale(2,BigDecimal.ROUND_DOWN);
+				moy = bd.doubleValue();
+				perYearAvis.put(i, moy);
+				
 			}
 			File file = new File("C:/Users/Abas/Desktop/notes.txt");
 			if (!file.exists()) {
@@ -69,13 +97,36 @@ public class App
 			}
 			FileWriter fw = new FileWriter(file.getAbsoluteFile());
 			BufferedWriter bw = new BufferedWriter(fw);
-			for( Map.Entry<Integer, Double> entry : globalNotes.entrySet() ) {
-			   Integer cle = entry.getKey();
-			    Double valeur = entry.getValue();
-			    bw.write(cle+": "+valeur);
-			    bw.newLine();
+			for(int i=startYear;i<endYear;i++){
+				String content=i+": "+globalNotes.get(i)+"( "+perYearAvis.get(i)+" avis)";
+				bw.write(content);
+				bw.newLine();
 			}
 			bw.close();
+			
+			
+			double[] xData = new double[globalNotes.size()];
+		    double[] yData = new double[globalNotes.size()];
+		 
+		    // Create Chart
+		    for(int i=0;i<notes.size();i++){
+		    	Notes note= notes.get(i);
+		    	xData[i]=new BigDecimal(note.getYear()).setScale(1, BigDecimal.ROUND_DOWN).doubleValue();
+		    	yData[i]=note.getNote();
+		    }
+		 
+		    // Show it
+		    Chart chart = new Chart(1000, 700);
+		    chart.setChartTitle("Moyenne des notes par année des films entre 1990 et 2014 sur SensCritique");
+		    chart.setXAxisTitle("Année");
+		    chart.setYAxisTitle("Moyenne");
+		    Series series = chart.addSeries("Moyenne des notes par année", xData, yData);
+		    series.setMarker(SeriesMarker.CIRCLE);
+		 
+		    BitmapEncoder.saveBitmapWithDPI(chart, "./Sample_Chart_300_DPI", BitmapFormat.PNG, 300);
+			
+			
+			
 		} catch (IOException e) {
 			
 			e.printStackTrace();
